@@ -1,7 +1,7 @@
 ember-simulant-test-helpers
 ==============================================================================
 
-[Short description of the addon.]
+Offers Ember test helpers for complex interactions, using DOM events generated with [simulant.js](https://github.com/Rich-Harris/simulant).
 
 Installation
 ------------------------------------------------------------------------------
@@ -10,12 +10,25 @@ Installation
 ember install ember-simulant-test-helpers
 ```
 
-
 Usage
 ------------------------------------------------------------------------------
 
-[Longer description of how to use the addon in apps.]
+```js
+import { find } from '@ember/test-helpers';
+import { panX } from 'ember-simulant-test-hlpers';
 
+// ...
+
+test('swipe back', async function(assert) {
+  await this.render();
+  await panX(find('.my-swipe-aware-thingy'), {
+    position: [50, 100],
+    amount: 150,
+    duration: 200,
+  });
+});
+
+```
 
 Contributing
 ------------------------------------------------------------------------------
