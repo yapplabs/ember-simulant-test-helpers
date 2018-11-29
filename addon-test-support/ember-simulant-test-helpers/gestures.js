@@ -106,3 +106,18 @@ export function panY(element, options) {
     scheduleMouseMove(options.position[0], options.position[1]);
   });
 }
+
+export function press(element, options) {
+  options = Object.assign({
+    position: [10, 10],
+    duration: 500
+  }, options);
+  let position = adjustCoordinates(options.position);
+  trigger('mousedown', position, element);
+  return new RSVP.Promise(function(resolve) {
+    setTimeout(function() {
+      trigger('mouseup', options.position, element);
+      resolve();
+    }, options.duration);
+  });
+}

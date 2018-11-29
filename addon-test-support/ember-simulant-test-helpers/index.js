@@ -1,5 +1,6 @@
-import { panX, panY } from './gestures';
+import { panX, panY, press } from './gestures';
 export {
   panX,
-  panY
+  panY,
+  press
 }
