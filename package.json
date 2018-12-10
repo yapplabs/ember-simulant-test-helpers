@@ -1,6 +1,6 @@
 {
   "name": "ember-simulant-test-helpers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Offers Ember test helpers for complex interactions, using DOM events generated with simulant.js.",
   "keywords": [
     "ember-addon"
