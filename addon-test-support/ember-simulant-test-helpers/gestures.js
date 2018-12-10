@@ -3,6 +3,13 @@ import RSVP from 'rsvp';
 
 const MOUSE_MOVE_INTERVAL = 10;
 
+function* range(start, end, step) {
+  while ((step > 0 && start <= end) || (step < 0 && start >= end)) {
+    yield start;
+    start += step;
+  }
+}
+
 function trigger(eventName, position, element) {
   simulant.fire(element, eventName, {
     clientX: position[0],
@@ -26,85 +33,68 @@ function adjustCoordinates(position) {
   return position;
 }
 
-export function panX(element, options) {
+function panAlongAxis(element, options) {
   return new RSVP.Promise(function(resolve) {
     options = Object.assign({
       position: [50, 100],
-      amount: 150,
+      amount: 150, // amount may be a number of pixels, OR an array of pixel amounts, to simulate pans going one direction and then back the other way
       duration: 300,
+      axis: 'x',
       waitForMouseUp: RSVP.resolve()
     }, options);
     let position = adjustCoordinates(options.position);
-    let startingX = position[0];
-    let endingX = startingX + options.amount;
+    let unchangingPositon = options.axis === 'x' ? position[1] : position[0];
+    let amounts = Array.isArray(options.amount) ? options.amount : [options.amount];
 
     trigger('mousedown', position, element);
 
     let mouseMoveCount = options.duration / MOUSE_MOVE_INTERVAL;
-    let stepX = options.amount / mouseMoveCount;
-    let scheduleMouseMove = function(x, y) {
-      let currentPosition = [x, y];
-      let finishedMoving = false;
-      if (options.amount > 0 && x >= endingX) {
-        finishedMoving = true;
-      } else if (options.amount < 0 && x <= endingX) {
-        finishedMoving = true;
+    let movesPerAmountSequence =  mouseMoveCount / amounts.length;
+
+    let positions = [];
+    let startingPosition = options.axis === 'x' ? position[0] : position[1];
+    amounts.forEach((amount) => {
+      let stepAmount = amount / movesPerAmountSequence;
+      let endingPosition = startingPosition + amount;
+      positions = positions.concat(Array.from(range(startingPosition, endingPosition, stepAmount)));
+      startingPosition = endingPosition;
+    });
+    let positionIndex = 0;
+    function xyPos(variablePos) {
+      if (options.axis === 'x') {
+        return [variablePos, unchangingPositon];
+      } else {
+        return [unchangingPositon, variablePos];
       }
+    }
+    let scheduleMouseMove = function() {
+      let finishedMoving = positionIndex === positions.length;
 
       if (finishedMoving) {
+        let mouseUpPosition = xyPos(positions[positionIndex - 1]);
         options.waitForMouseUp.then(function() {
-          trigger('mouseup', currentPosition, element);
+          trigger('mouseup', mouseUpPosition, element);
           setTimeout(resolve, MOUSE_MOVE_INTERVAL);
         });
         return;
       }
+      let currentPosition = xyPos(positions[positionIndex]);
       setTimeout(function() {
         trigger('mousemove', currentPosition, element);
-        scheduleMouseMove(x + stepX, y);
+        positionIndex++;
+        scheduleMouseMove();
       }, MOUSE_MOVE_INTERVAL);
     };
-    scheduleMouseMove(position[0], position[1]);
+    scheduleMouseMove();
   });
 }
 
+export function panX(element, options) {
+  return panAlongAxis(element, Object.assign(options, { axis: 'x' }));
+}
+
 export function panY(element, options) {
-  return new RSVP.Promise(function(resolve) {
-    options = Object.assign({
-      position: [10, 500],
-      amount: 500,
-      duration: 500,
-      waitForMouseUp: RSVP.resolve()
-    }, options);
-    let startingY = options.position[1];
-    let endingY = startingY - options.amount;
-
-    trigger('mousedown', options.position, element);
-
-    let mouseMoveCount = options.duration / MOUSE_MOVE_INTERVAL;
-    let stepY = options.amount / mouseMoveCount;
-    let scheduleMouseMove = function(x, y) {
-      let position = [x, y];
-      let finishedMoving = false;
-      if (options.amount > 0 && y <= endingY) {
-        finishedMoving = true;
-      } else if (options.amount < 0 && y >= endingY) {
-        finishedMoving = true;
-      }
-
-      if (finishedMoving) {
-        options.waitForMouseUp.then(function() {
-          trigger('mouseup', position, element);
-          setTimeout(resolve, MOUSE_MOVE_INTERVAL);
-        });
-        return;
-      }
-      setTimeout(function() {
-        trigger('mousemove', position, element);
-        scheduleMouseMove(x, y - stepY);
-      }, MOUSE_MOVE_INTERVAL);
-    };
-    scheduleMouseMove(options.position[0], options.position[1]);
-  });
+  return panAlongAxis(element, Object.assign(options, { axis: 'y' }));
 }
 
 export function press(element, options) {
