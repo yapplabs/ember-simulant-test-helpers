@@ -3,14 +3,59 @@ import RSVP from 'rsvp';
 
 const MOUSE_MOVE_INTERVAL = 10;
 
-function* range(start, end, step) {
-  while ((step > 0 && start <= end) || (step < 0 && start >= end)) {
+class Point {
+  constructor(x, y) {
+    if (arguments.length === 1) {
+      this.x = x[0];
+      this.y = x[1];
+    } else {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  get tuple() {
+    return [this.x, this.y];
+  }
+  offset(distance) {
+    return new Point(this.x + distance.x, this.y + distance.y);
+  }
+}
+
+class Distance {
+  constructor(x, y) {
+    if (arguments.length === 1) {
+      this.x = x[0];
+      this.y = x[1];
+    } else {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  get tuple() {
+    return [this.x, this.y];
+  }
+  dividedBy(divisor) {
+    return new Distance(
+     this.x / divisor,
+     this.y / divisor
+   );
+  }
+}
+
+function* positionRange(start, end, step) {
+  function done() {
+    let isXDone = (step.x >= 0 && start.x >= end.x) || (step.x <= 0 && start.x <= end.x);
+    let isYDone = (step.y >= 0 && start.y >= end.y) || (step.y <= 0 && start.y <= end.y);
+    return isXDone && isYDone;
+  }
+  while (!done()) {
     yield start;
-    start += step;
+    start = start.offset(step);
   }
 }
 
 function trigger(eventName, position, element) {
+  // console.log('trigger', ...arguments);
   simulant.fire(element, eventName, {
     clientX: position[0],
     clientY: position[1]
@@ -33,60 +78,68 @@ function adjustCoordinates(position) {
   return position;
 }
 
-function panAlongAxis(element, options) {
+export function panAlongPath(element, options) {
   return new RSVP.Promise(function(resolve) {
     options = Object.assign({
       position: [50, 100],
-      amount: 150, // amount may be a number of pixels, OR an array of pixel amounts, to simulate pans going one direction and then back the other way
+      amounts: [[10, 10], [0, -20], [-20, 0], [-10, 10]],
       duration: 300,
-      axis: 'x',
       waitForMouseUp: RSVP.resolve()
     }, options);
-    let position = adjustCoordinates(options.position);
-    let unchangingPositon = options.axis === 'x' ? position[1] : position[0];
-    let amounts = Array.isArray(options.amount) ? options.amount : [options.amount];
-
-    trigger('mousedown', position, element);
-
-    let mouseMoveCount = options.duration / MOUSE_MOVE_INTERVAL;
-    let movesPerAmountSequence =  mouseMoveCount / amounts.length;
-
+    let { duration } = options;
+    let position = new Point(adjustCoordinates(options.position));
+    let distances = options.amounts.map(tuple => new Distance(tuple));
+    trigger('mousedown', position.tuple, element);
+    let mouseMoveCount = duration / MOUSE_MOVE_INTERVAL;
+    let movesPerSequence =  mouseMoveCount / distances.length;
     let positions = [];
-    let startingPosition = options.axis === 'x' ? position[0] : position[1];
-    amounts.forEach((amount) => {
-      let stepAmount = amount / movesPerAmountSequence;
-      let endingPosition = startingPosition + amount;
-      positions = positions.concat(Array.from(range(startingPosition, endingPosition, stepAmount)));
+    let startingPosition = position;
+    distances.forEach((distance) => {
+      let stepDistance = distance.dividedBy(movesPerSequence);
+      let endingPosition = startingPosition.offset(distance);
+      positions = positions.concat(
+        Array.from(positionRange(startingPosition, endingPosition, stepDistance))
+      );
       startingPosition = endingPosition;
     });
     let positionIndex = 0;
-    function xyPos(variablePos) {
-      if (options.axis === 'x') {
-        return [variablePos, unchangingPositon];
-      } else {
-        return [unchangingPositon, variablePos];
-      }
-    }
     let scheduleMouseMove = function() {
       let finishedMoving = positionIndex === positions.length;
 
       if (finishedMoving) {
-        let mouseUpPosition = xyPos(positions[positionIndex - 1]);
+        let mouseUpPosition = positions[positionIndex - 1];
         options.waitForMouseUp.then(function() {
-          trigger('mouseup', mouseUpPosition, element);
+          trigger('mouseup', mouseUpPosition.tuple, element);
           setTimeout(resolve, MOUSE_MOVE_INTERVAL);
         });
         return;
       }
-      let currentPosition = xyPos(positions[positionIndex]);
+      let currentPosition = positions[positionIndex];
       setTimeout(function() {
-        trigger('mousemove', currentPosition, element);
+        trigger('mousemove', currentPosition.tuple, element);
         positionIndex++;
         scheduleMouseMove();
       }, MOUSE_MOVE_INTERVAL);
     };
     scheduleMouseMove();
   });
+}
+
+function panAlongAxis(element, options) {
+  options = Object.assign({
+    position: [50, 100],
+    amount: 150, // amount may be a number of pixels, OR an array of pixel amounts, to simulate pans going one direction and then back the other way
+    duration: 300,
+    axis: 'x',
+    waitForMouseUp: RSVP.resolve()
+  }, options);
+  if (options.axis === 'y') {
+    options.amounts = Array.isArray(options.amount) ? options.amount.map(y => [0, y]) : [[0, options.amount]];
+  } else {
+    options.amounts = Array.isArray(options.amount) ? options.amount.map(x => [x, 0]) : [[options.amount, 0]];
+  }
+  delete options.amount;
+  return panAlongPath(element, options);
 }
 
 export function panX(element, options) {
