@@ -110,6 +110,7 @@ export function panAlongPath(element, options) {
         let mouseUpPosition = positions[positionIndex - 1];
         options.waitForMouseUp.then(function() {
           trigger('mouseup', mouseUpPosition.tuple, element);
+          trigger('click', mouseUpPosition.tuple, element);
           setTimeout(resolve, MOUSE_MOVE_INTERVAL);
         });
         return;
@@ -160,6 +161,7 @@ export function press(element, options) {
   return new RSVP.Promise(function(resolve) {
     setTimeout(function() {
       trigger('mouseup', options.position, element);
+      trigger('click', options.position, element);
       resolve();
     }, options.duration);
   });
